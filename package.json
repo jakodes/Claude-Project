@@ -1,0 +1,14 @@
+{
+  "name": "boba-rush",
+  "version": "1.0.0",
+  "description": "A co-op bubble tea shop game. Play solo or with up to 6 friends.",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
