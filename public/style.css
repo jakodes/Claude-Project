@@ -1249,6 +1249,15 @@ body.rush #game::after {
   background: var(--red); border: 3px solid var(--ink); transform: rotate(8deg); animation: pulse 1s infinite;
 }
 .max-tag { font-family: var(--display); color: var(--mint-d); letter-spacing: 1px; padding: 3px 0; text-align: center; }
+/* co-op only upgrades in a showdown: greyed out with a lock */
+.upgrade.banned { background: repeating-linear-gradient(-45deg, #f3eef5 0 10px, #ebe3ee 10px 20px); }
+.upgrade.banned:hover { transform: none; box-shadow: 0 4px 0 var(--ink); }
+.upgrade.banned .up-icon { filter: grayscale(1); opacity: .6; }
+.upgrade.banned .up-name, .upgrade.banned .up-desc { opacity: .6; }
+.lock-tag {
+  grid-column: 1 / -1; font-family: var(--display); font-size: 14px; line-height: 1.1; color: #6b5668; letter-spacing: .5px; padding: 3px 2px; text-align: center;
+  background: #fff; border: 3px dashed #b9a6c4; border-radius: 12px;
+}
 
 /* ---------- modal & toasts ---------- */
 .modal { position: fixed; inset: 0; background: rgba(20, 8, 32, .6); display: grid; place-items: center; z-index: 50; padding: 16px; }
@@ -1324,6 +1333,7 @@ body[data-screen="game"] #toasts { bottom: auto; top: calc(56px + var(--safe-t))
   .up-name { font-size: 12.5px; }
   .up-desc { display: none; }
   .upgrade .gbtn { font-size: 13px; padding: 4px 6px; }
+  .lock-tag { font-size: 11.5px; letter-spacing: 0; border-width: 2px; }
   .upgrade .rc-mini { justify-content: center; }
   .upgrade .rc-mini .pill { font-size: 9px; }
   .lb-row { font-size: 12px; }
@@ -1451,7 +1461,7 @@ body[data-screen="game"] #toasts { bottom: auto; top: calc(56px + var(--safe-t))
   .up-icon { width: 30px; height: 30px; font-size: 16px; grid-row: span 2; border-radius: 9px; }
   .up-name { font-size: 12px; }
   .up-desc, .upgrade .rc-mini { display: none; }
-  .upgrade .gbtn, .upgrade .max-tag { grid-column: 3; grid-row: 1 / span 2; width: auto; font-size: 12px; padding: 3px 6px; }
+  .upgrade .gbtn, .upgrade .max-tag, .upgrade .lock-tag { grid-column: 3; grid-row: 1 / span 2; width: auto; font-size: 12px; padding: 3px 6px; }
   .upgrade .max-tag { font-size: 11px; }
   .upgrade .up-pips { grid-column: 2; }
   .gbtn-xl { font-size: 18px; padding: 8px 14px; }

@@ -55,8 +55,8 @@ At the end of each day the report screen has a **Shop** button with two tabs.
 | --- | --- |
 | ⚡ Turbo Taps (3 levels) | Tea pours 30% faster per level. |
 | 🎯 Smart Spout | Taps shut off by themselves right at the fill line. |
-| 🤖 Mix-O-Matic | One tap sets sweetness, ice and drizzle to match your ticket. |
-| 🦾 Topping Bot | One tap scoops every topping on your ticket. |
+| 🤖 Mix-O-Matic | One tap sets sweetness, ice and drizzle to match your ticket. Co-op and solo only. |
+| 🦾 Topping Bot | One tap scoops every topping on your ticket. Co-op and solo only. |
 | 🌀 Pro Shaker (3 levels) | Bigger green zone and a calmer needle. |
 | 💎 Premium Ingredients (3 levels) | Every drink sells for $1 more per level. |
 | 🫙 Tip Jar (3 levels) | Tips are 25% bigger per level. |
@@ -87,6 +87,9 @@ next day.
 Everyone serves the **same line of customers**, but each player runs their own shop with their own
 wallet, upgrades and recipes. Most money by the end of the day wins.
 
+- **Everyone starts busy.** Each day opens with one customer per player already at the counter,
+  so nobody stands around waiting for the first order.
+- **No shortcuts.** Mix-O-Matic and Topping Bot are co-op only, so every drink is made by hand.
 - **One customer at a time.** You can't take a new order until you've served the one you have,
   so nobody can hoard tickets. Your customers are yours: no handoffs, no stealing.
 - **Race bar.** A live leaderboard under the clock shows everyone's takings, their station, their

@@ -250,7 +250,7 @@
     if (showdown()) return me() || blank;
     return { money: S.snap.money, upgrades: S.snap.upgrades || {}, recipes: S.snap.recipes || [] };
   }
-  const perks = () => G.perks(myShop().upgrades);
+  const perks = () => G.perks(myShop().upgrades, showdown());
   const day = () => (S.snap ? Math.max(1, S.snap.day) : 1);
   const takeFx = () => {
     const fx = S.fx;
@@ -690,7 +690,7 @@
         <span class="amt">${amt}</span></div>`;
     }).join('');
     const shop = myShop();
-    const affordable = G.UPGRADES.some((u) => (shop.upgrades[u.id] || 0) < u.costs.length && shop.money + 1e-9 >= u.costs[shop.upgrades[u.id] || 0])
+    const affordable = G.UPGRADES.some((u) => !(u.coopOnly && sd) && (shop.upgrades[u.id] || 0) < u.costs.length && shop.money + 1e-9 >= u.costs[shop.upgrades[u.id] || 0])
       || G.SPECIALS.some((s) => !shop.recipes.includes(s.id) && shop.money + 1e-9 >= s.cost);
     $('#shopBtn').innerHTML = `🛒 Shop${affordable ? '<span class="new-badge">NEW</span>' : ''}`;
   }
@@ -723,11 +723,14 @@
         const lv = shop.upgrades[u.id] || 0;
         const max = u.costs.length;
         const cost = u.costs[lv];
+        const banned = u.coopOnly && showdown();
         const pips = max > 1 ? `<div class="up-pips">${u.costs.map((_, k) => `<i class="${k < lv ? 'on' : ''}"></i>`).join('')}</div>` : '<div class="up-pips"></div>';
-        const buy = lv >= max
-          ? `<div class="max-tag">${max > 1 ? '★ Maxed out' : '✔ Owned'}</div>`
-          : `<button class="gbtn ${can(cost) ? 'gbtn-mint' : 'gbtn-cream'}" data-buy="${u.id}" data-level="${lv}" ${can(cost) ? '' : 'disabled'}><span class="coin">$</span>${cost}</button>`;
-        return `<div class="upgrade ${lv >= max ? 'maxed' : ''} ${S.justBought === u.id ? 'just' : ''}" style="${delay(i)}">
+        const buy = banned
+          ? '<div class="lock-tag">🔒 Co-op only</div>'
+          : lv >= max
+            ? `<div class="max-tag">${max > 1 ? '★ Maxed out' : '✔ Owned'}</div>`
+            : `<button class="gbtn ${can(cost) ? 'gbtn-mint' : 'gbtn-cream'}" data-buy="${u.id}" data-level="${lv}" ${can(cost) ? '' : 'disabled'}><span class="coin">$</span>${cost}</button>`;
+        return `<div class="upgrade ${banned ? 'banned' : lv >= max ? 'maxed' : ''} ${S.justBought === u.id ? 'just' : ''}" style="${delay(i)}">
           <div class="up-icon">${u.icon}</div><div class="up-name">${u.name}</div>${pips}
           <div class="up-desc">${u.desc}</div>${buy}</div>`;
       }).join('');
