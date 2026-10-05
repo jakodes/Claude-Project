@@ -1,0 +1,10 @@
+{
+  "name": "Boba Rush",
+  "short_name": "Boba Rush",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#1b0f2e",
+  "theme_color": "#24123d",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

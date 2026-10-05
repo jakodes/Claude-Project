@@ -47,6 +47,10 @@ test('two players can share a room over HTTP', async (t) => {
   assert.strictEqual(page.status, 200);
   assert.match(page.body, /Boba Rush/);
   assert.strictEqual((await request(port, 'GET', '/game.js')).status, 200);
+  const icon = await request(port, 'GET', '/icon.svg');
+  assert.strictEqual(icon.headers['content-type'], 'image/svg+xml');
+  const manifest = await request(port, 'GET', '/manifest.webmanifest');
+  assert.strictEqual(JSON.parse(manifest.body).display, 'fullscreen');
   assert.strictEqual((await request(port, 'GET', '/../package.json')).status, 404);
 
   const host = JSON.parse((await request(port, 'POST', '/api/join', { create: true, name: 'Host' })).body);
@@ -64,6 +68,8 @@ test('two players can share a room over HTTP', async (t) => {
 
   const notHost = JSON.parse((await request(port, 'POST', '/api/action', { code: guest.code, pid: guest.pid, token: guest.token, action: { type: 'start' } })).body);
   assert.strictEqual(notHost.ok, false);
+  const mode = JSON.parse((await request(port, 'POST', '/api/action', { code: host.code, pid: host.pid, token: host.token, action: { type: 'mode', mode: 'showdown' } })).body);
+  assert.ok(mode.ok);
   const start = JSON.parse((await request(port, 'POST', '/api/action', { code: host.code, pid: host.pid, token: host.token, action: { type: 'start' } })).body);
   assert.ok(start.ok);
 
