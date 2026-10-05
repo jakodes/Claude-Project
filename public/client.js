@@ -664,7 +664,7 @@
     if (sd && r.players.length > 1) {
       // second, first, third, so the winner stands in the middle
       const slots = [1, 0, 2].filter((rank) => r.players[rank]);
-      const heights = ['86%', '62%', '44%'];
+      const heights = [1, 0.68, 0.45]; // share of the space left under each avatar
       podium.innerHTML = slots.map((rank) => {
         const p = r.players[rank];
         return `<div class="pod ${rank === 0 ? 'first' : ''}">
@@ -1709,10 +1709,11 @@
   /* ---------------- score card ---------------- */
   let popTimer = null;
   function confetti() {
-    const colors = ['#ff5c8a', '#ffc83d', '#22c993', '#8a5cf6', '#7fd3ff'];
+    const colors = ['#ff5c8a', '#ffc83d', '#22c993', '#8a5cf6', '#7fd3ff', '#ffd166'];
+    const shapes = ['2px', '50%', '2px 8px'];
     let html = '';
-    for (let i = 0; i < 22; i++) {
-      html += `<i style="--x:${Math.random() * 100}%;--c:${colors[i % colors.length]};--t:${1 + Math.random()}s;--d:${Math.random() * 0.3}s;--rot:${Math.random() * 720 - 360}deg"></i>`;
+    for (let i = 0; i < 38; i++) {
+      html += `<i style="--x:${Math.random() * 100}%;--c:${colors[i % colors.length]};--r:${shapes[i % shapes.length]};--t:${1 + Math.random()}s;--d:${Math.random() * 0.35}s;--rot:${Math.random() * 720 - 360}deg;--sway:${(Math.random() * 2 - 1) * 40}px"></i>`;
     }
     return `<div class="confetti">${html}</div>`;
   }
