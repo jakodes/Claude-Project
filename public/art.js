@@ -4,6 +4,7 @@
   const G = window.BobaGame;
   const teaColor = (id) => (G.TEAS.find((t) => t.id === id) || {}).color;
   const topColor = (id) => (G.TOPPINGS.find((t) => t.id === id) || {}).color;
+  const INK = '#2d1b33';
 
   function rand(i, salt) {
     const x = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
@@ -68,16 +69,17 @@
       parts.push(`<path d="M0 ${liquidTop + 14} q10 6 20 0 t20 0 t20 0 t20 0 t20 0 t20 0" fill="${topColor('foam')}"/>`);
     }
     parts.push(`</g>`);
-    parts.push(`<polygon points="18,24 102,24 88,160 32,160" fill="url(#${uid}g)" stroke="#9fb8c8" stroke-width="2.5" stroke-linejoin="round"/>`);
+    parts.push(`<polygon points="18,24 102,24 88,160 32,160" fill="url(#${uid}g)" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>`);
+    parts.push(`<path d="M26 34 L36 150" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".45"/>`);
     if (opts.target) {
       const ty = BOTTOM - G.FILL_TARGET * DEPTH;
       parts.push(`<line x1="8" x2="112" y1="${ty}" y2="${ty}" stroke="#ff4d6d" stroke-width="2" stroke-dasharray="5 4"/>`);
       parts.push(`<text x="112" y="${ty - 4}" font-size="9" text-anchor="end" fill="#ff4d6d" font-weight="700">FILL LINE</text>`);
     }
     if (cup.sealed) {
-      parts.push(`<rect x="14" y="18" width="92" height="8" rx="3" fill="#ffffff" stroke="#9fb8c8" stroke-width="2"/>`);
-      parts.push(`<rect x="22" y="20" width="76" height="2" fill="#ffd6e0"/>`);
-      parts.push(`<rect x="62" y="-22" width="11" height="150" rx="5" fill="${opts.straw || '#ff8fab'}" transform="rotate(10 67 60)" opacity=".95"/>`);
+      parts.push(`<rect x="62" y="-22" width="12" height="150" rx="6" fill="${opts.straw || '#ff8fab'}" stroke="${INK}" stroke-width="3" transform="rotate(10 67 60)"/>`);
+      parts.push(`<rect x="13" y="16" width="94" height="11" rx="4" fill="#ffffff" stroke="${INK}" stroke-width="3"/>`);
+      parts.push(`<rect x="22" y="19.5" width="76" height="3" rx="1.5" fill="#ffc2d4"/>`);
     }
     if (cup.spilled) {
       parts.push(`<path d="M18 24 q-6 14 -2 26 q4 -8 6 -20z M102 24 q6 16 2 30 q-4 -10 -6 -24z" fill="${color}" opacity=".9"/>`);
@@ -96,14 +98,14 @@
     const s = look.skin, h = look.hair;
     const p = [];
     // body
-    p.push(`<path d="M14 130 q0 -34 36 -36 q36 2 36 36z" fill="${look.shirt}"/>`);
-    p.push(`<rect x="44" y="78" width="12" height="16" fill="${s}"/>`);
+    p.push(`<path d="M14 132 q0 -36 36 -38 q36 2 36 38z" fill="${look.shirt}" stroke="${INK}" stroke-width="3.5" stroke-linejoin="round"/>`);
+    p.push(`<rect x="43" y="76" width="14" height="19" fill="${s}" stroke="${INK}" stroke-width="3"/>`);
     // hair behind head
     if (look.style === 1) p.push(`<path d="M20 56 q0 -34 30 -34 q30 0 30 34 v38 h-60z" fill="${h}"/>`);
     if (look.style === 2) p.push(`<circle cx="50" cy="20" r="11" fill="${h}"/>`);
     // head
-    p.push(`<circle cx="50" cy="56" r="27" fill="${s}"/>`);
-    p.push(`<circle cx="23" cy="58" r="5" fill="${s}"/><circle cx="77" cy="58" r="5" fill="${s}"/>`);
+    p.push(`<circle cx="23" cy="58" r="6" fill="${s}" stroke="${INK}" stroke-width="3"/><circle cx="77" cy="58" r="6" fill="${s}" stroke="${INK}" stroke-width="3"/>`);
+    p.push(`<circle cx="50" cy="56" r="27" fill="${s}" stroke="${INK}" stroke-width="3.5"/>`);
     // hair on top
     if (look.style === 0) p.push(`<path d="M23 52 q2 -26 27 -26 q25 0 27 26 q-10 -12 -27 -12 q-17 0 -27 12z" fill="${h}"/>`);
     if (look.style === 1) p.push(`<path d="M23 54 q4 -28 27 -28 q23 0 27 28 q-16 -6 -22 -18 q-10 14 -32 18z" fill="${h}"/>`);
@@ -132,8 +134,21 @@
     };
     p.push(`<path d="${mouths[m] || mouths.ok}" stroke="#2b2b2b" stroke-width="2.5" fill="none" stroke-linecap="round"/>`);
     if (m === 'angry') p.push(`<path d="M74 34 q4 6 0 10 q-4 -4 0 -10z" fill="#74c0fc"/>`);
-    return `<svg class="customer-svg" viewBox="0 0 100 130" aria-hidden="true">${p.join('')}</svg>`;
+    return `<svg class="customer-svg" viewBox="0 0 100 132" aria-hidden="true">${p.join('')}</svg>`;
   }
 
-  window.BobaArt = { cupSvg, customerSvg, mood, teaColor, topColor };
+  /** A player's barista: a little face in a cap of their team color. */
+  function baristaSvg(color) {
+    return `<svg class="barista-svg" viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="36" r="21" fill="#ffe0c7" stroke="${INK}" stroke-width="3.5"/>
+      <path d="M11 32 q1 -22 21 -22 q20 0 21 22 q-21 -7 -42 0z" fill="${color}" stroke="${INK}" stroke-width="3.5" stroke-linejoin="round"/>
+      <path d="M40 28 q14 -1 20 4 q-9 3 -20 1z" fill="${color}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>
+      <circle cx="30" cy="17" r="3.5" fill="#fff" opacity=".6"/>
+      <ellipse cx="25" cy="40" rx="2.8" ry="3.6" fill="${INK}"/><ellipse cx="39" cy="40" rx="2.8" ry="3.6" fill="${INK}"/>
+      <path d="M27 48 q5 5 10 0" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <circle cx="19" cy="46" r="3.5" fill="#ff8fa3" opacity=".5"/><circle cx="45" cy="46" r="3.5" fill="#ff8fa3" opacity=".5"/>
+    </svg>`;
+  }
+
+  window.BobaArt = { cupSvg, customerSvg, baristaSvg, mood, teaColor, topColor };
 })();

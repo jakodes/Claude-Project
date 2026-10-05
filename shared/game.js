@@ -34,9 +34,36 @@
   const MAX_TOPPINGS = 3;
   const MAX_PLAYERS = 6;
   const DAY_LENGTH_MS = 150000;
+  const HANDOFF_MS = 15000;
+  const BASE_POUR_RATE = 0.32; // cup fraction per second
   const PLAYER_COLORS = ['#ff6b6b', '#4dabf7', '#51cf66', '#fcc419', '#cc5de8', '#ff922b'];
   const EMOTES = ['👍', '🔥', '😱', '🙏', '😂', '❤️'];
   const STATIONS = ['counter', 'brew', 'mix', 'toppings', 'shake'];
+
+  // Bought with the shared bank between days. costs[i] is the price of level i + 1.
+  const UPGRADES = [
+    { id: 'turbo', name: 'Turbo Taps', icon: '⚡', desc: 'Tea pours 30% faster per level.', costs: [15, 30, 50] },
+    { id: 'spout', name: 'Smart Spout', icon: '🎯', desc: 'Taps shut off by themselves right at the fill line.', costs: [45] },
+    { id: 'mixer', name: 'Mix-O-Matic', icon: '🤖', desc: 'One button sets sweetness and ice to match your ticket.', costs: [35] },
+    { id: 'shaker', name: 'Pro Shaker', icon: '🌀', desc: 'Bigger green zone and a calmer needle per level.', costs: [12, 25, 45] },
+    { id: 'premium', name: 'Premium Ingredients', icon: '💎', desc: 'Every drink sells for $1 more per level.', costs: [25, 50, 80] },
+    { id: 'lounge', name: 'Comfy Lounge', icon: '🛋️', desc: 'Customers wait 15% longer per level.', costs: [20, 40] },
+  ];
+
+  /** What the owned upgrade levels actually do. Used by the rules and by the client stations. */
+  function perks(levels) {
+    const L = (id) => (levels && levels[id]) || 0;
+    return {
+      pourRate: BASE_POUR_RATE * (1 + 0.3 * L('turbo')),
+      autoStop: L('spout') > 0,
+      autoMix: L('mixer') > 0,
+      shakeHalfZone: 0.09 + 0.025 * L('shaker'),
+      shakeGrace: 0.03 + 0.025 * L('shaker'),
+      shakeSpeed: 1 - 0.12 * L('shaker'),
+      bonusPrice: L('premium'),
+      patience: 1 + 0.15 * L('lounge'),
+    };
+  }
 
   const CUSTOMER_NAMES = [
     'Mochi', 'Kiwi', 'Juniper', 'Bao', 'Pixel', 'Marlo', 'Suki', 'Remy', 'Tofu', 'Nova',
@@ -156,6 +183,7 @@
       this.phase = 'lobby';
       this.day = 0;
       this.money = 0;
+      this.upgrades = Object.fromEntries(UPGRADES.map((u) => [u.id, 0]));
       this.customers = [];
       this.nextCustomerId = 1;
       this.dayEndsAt = 0;
@@ -196,7 +224,14 @@
       const p = this.players.get(id);
       if (!p) return;
       this.players.delete(id);
-      for (const c of this.customers) if (c.claimedBy === id) c.claimedBy = null;
+      for (const c of this.customers) {
+        if (c.request && c.request.from === id) c.request = null;
+        if (c.claimedBy === id) {
+          // if someone was asking for this ticket, they get it
+          c.claimedBy = c.request ? c.request.from : null;
+          c.request = null;
+        }
+      }
       if (this.hostId === id) this.hostId = this.players.keys().next().value || null;
       this._event('leave', { pid: id, name: p.name });
       this._bump();
@@ -242,6 +277,11 @@
         this.nextSpawnAt = now + 1500;
       }
       for (const c of active) {
+        if (c.request && now >= c.request.expiresAt) {
+          this._event('handoffNo', { cid: c.id, from: c.claimedBy, to: c.request.from, timeout: true });
+          c.request = null;
+          this._bump();
+        }
         if (now >= c.leaveAt) {
           c.status = 'left';
           c.doneAt = now;
@@ -261,7 +301,8 @@
 
     _spawn(now) {
       const order = makeOrder(this.rng, this.day);
-      const patienceMs = Math.max(50000, 80000 - (this.day - 1) * 5000) + order.toppings.length * 6000;
+      const base = Math.max(50000, 80000 - (this.day - 1) * 5000) + order.toppings.length * 6000;
+      const patienceMs = Math.round(base * perks(this.upgrades).patience);
       const c = {
         id: this.nextCustomerId++,
         name: pick(this.rng, CUSTOMER_NAMES),
@@ -272,6 +313,7 @@
         patienceMs,
         leaveAt: now + patienceMs,
         claimedBy: null,
+        request: null,
         doneAt: 0,
       };
       this.customers.push(c);
@@ -324,22 +366,81 @@
       return { ok: true };
     }
 
-    claim(pid, cid) {
+    /**
+     * Pick up a ticket. Open tickets are claimed straight away. A ticket someone else
+     * already holds never switches owner here: the holder gets a request to pass it over.
+     */
+    claim(pid, cid, now) {
       const c = this._customer(cid);
       if (!c || c.status !== 'ordered') return { ok: false, error: 'No such ticket' };
-      c.claimedBy = c.claimedBy === pid ? null : pid;
+      if (!this.players.has(pid)) return { ok: false, error: 'Not in this shop' };
+      const owner = c.claimedBy ? this.players.get(c.claimedBy) : null;
+      if (!owner || c.claimedBy === pid) {
+        if (c.claimedBy !== pid) {
+          c.claimedBy = pid;
+          c.request = null;
+          this._bump();
+        }
+        return { ok: true, claimed: true };
+      }
+      if (c.request && c.request.from === pid) return { ok: true, pending: true, owner: owner.name };
+      if (c.request) {
+        const asker = this.players.get(c.request.from);
+        return { ok: false, error: `${asker ? asker.name : 'Someone'} already asked for this one` };
+      }
+      c.request = { from: pid, expiresAt: now + HANDOFF_MS };
+      this._event('handoffAsk', { cid, from: pid, to: c.claimedBy });
+      this._bump();
+      return { ok: true, pending: true, owner: owner.name };
+    }
+
+    /** The ticket holder answers a request to pass their ticket over. */
+    respondHandoff(pid, cid, accept) {
+      const c = this._customer(cid);
+      if (!c || c.status !== 'ordered' || !c.request) return { ok: false, error: 'That request is gone' };
+      if (c.claimedBy !== pid) return { ok: false, error: 'That is not your ticket' };
+      const to = c.request.from;
+      c.request = null;
+      if (accept && this.players.has(to)) {
+        c.claimedBy = to;
+        this._event('handoff', { cid, from: pid, to });
+      } else {
+        this._event('handoffNo', { cid, from: pid, to });
+      }
       this._bump();
       return { ok: true };
+    }
+
+    /** Spend the shared bank on an upgrade. Only between days. */
+    buyUpgrade(pid, uid, seenLevel) {
+      if (this.phase !== 'results') return { ok: false, error: 'The upgrade shop opens at the end of each day' };
+      if (!this.players.has(pid)) return { ok: false, error: 'Not in this shop' };
+      const u = UPGRADES.find((x) => x.id === uid);
+      if (!u) return { ok: false, error: 'No such upgrade' };
+      const level = this.upgrades[uid];
+      // two teammates clicking the same card at once should not buy two levels
+      if (seenLevel != null && Number(seenLevel) !== level) return { ok: false, error: 'A teammate just bought that one' };
+      if (level >= u.costs.length) return { ok: false, error: 'Already maxed out' };
+      const cost = u.costs[level];
+      if (this.money + 1e-9 < cost) return { ok: false, error: 'Not enough money in the bank' };
+      this.money = round2(this.money - cost);
+      this.upgrades[uid] = level + 1;
+      this._event('upgrade', { pid, uid, level: level + 1, cost });
+      this._bump();
+      return { ok: true, level: level + 1 };
     }
 
     serve(pid, cid, drink, now) {
       if (this.phase !== 'playing') return { ok: false, error: 'Shop is closed' };
       const c = this._customer(cid);
       if (!c || c.status !== 'ordered') return { ok: false, error: 'That order is gone' };
+      const owner = c.claimedBy && c.claimedBy !== pid ? this.players.get(c.claimedBy) : null;
+      if (owner) return { ok: false, error: `That is ${owner.name}'s ticket. Ask them to pass it over.` };
       const result = scoreDrink(c.order, drink);
       const patience = clamp((c.leaveAt - now) / c.patienceMs, 0, 1);
       const quality = result.total / 100;
-      const price = quality >= 0.45 ? drinkPrice(c.order) : drinkPrice(c.order) * 0.5;
+      const full = drinkPrice(c.order) + perks(this.upgrades).bonusPrice;
+      const price = quality >= 0.45 ? full : full * 0.5;
       const tip = quality * quality * 5 * (0.4 + 0.6 * patience);
       const earned = round2(price + tip);
       c.status = 'served';
@@ -383,7 +484,9 @@
       switch (action.type) {
         case 'start': return this.startDay(pid, now);
         case 'take': return this.takeOrder(pid, Number(action.cid));
-        case 'claim': return this.claim(pid, Number(action.cid));
+        case 'claim': return this.claim(pid, Number(action.cid), now);
+        case 'respond': return this.respondHandoff(pid, Number(action.cid), action.accept === true);
+        case 'buy': return this.buyUpgrade(pid, String(action.id), action.level);
         case 'serve': return this.serve(pid, Number(action.cid), action.drink, now);
         case 'station': return this.setStation(pid, action.station);
         case 'emote': return this.emote(pid, action.emote);
@@ -401,6 +504,8 @@
         money: this.money,
         hostId: this.hostId,
         dayEndsAt: this.dayEndsAt,
+        dayLengthMs: this.dayLengthMs,
+        upgrades: Object.assign({}, this.upgrades),
         players: [...this.players.values()].map((p) => ({
           id: p.id, name: p.name, color: p.color, station: p.station,
           served: p.served, earned: round2(p.earned),
@@ -410,6 +515,7 @@
           order: c.status === 'waiting' ? null : c.order,
           arrivedAt: c.arrivedAt, leaveAt: c.leaveAt, patienceMs: c.patienceMs,
           claimedBy: c.claimedBy, stars: c.stars,
+          request: c.request ? { from: c.request.from, expiresAt: c.request.expiresAt } : null,
         })),
         stats: this.stats,
         results: this.lastResults,
@@ -420,7 +526,7 @@
 
   return {
     TEAS, TOPPINGS, SWEETNESS, ICE, FILL_TARGET, FILL_TOLERANCE, MAX_TOPPINGS, MAX_PLAYERS,
-    DAY_LENGTH_MS, EMOTES, STATIONS, PLAYER_COLORS,
-    Room, scoreDrink, sanitizeDrink, makeOrder, mulberry32, gradeFor,
+    DAY_LENGTH_MS, HANDOFF_MS, BASE_POUR_RATE, EMOTES, STATIONS, PLAYER_COLORS, UPGRADES,
+    Room, scoreDrink, sanitizeDrink, makeOrder, mulberry32, gradeFor, perks,
   };
 });
