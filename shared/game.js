@@ -75,12 +75,12 @@
   const EMOTES = ['👍', '🔥', '😱', '🙏', '😂', '❤️', '😎', '💀', '🧋'];
   const STATIONS = ['counter', 'brew', 'mix', 'toppings', 'shake'];
 
-  // Bought between days. costs[i] is the price of level i + 1.
+  // Bought between days. costs[i] is the price of level i + 1. coopOnly upgrades can't be bought in a showdown.
   const UPGRADES = [
     { id: 'turbo', name: 'Turbo Taps', icon: '⚡', desc: 'Tea pours 30% faster per level.', costs: [15, 30, 50] },
     { id: 'spout', name: 'Smart Spout', icon: '🎯', desc: 'Taps shut off by themselves right at the fill line.', costs: [45] },
-    { id: 'mixer', name: 'Mix-O-Matic', icon: '🤖', desc: 'One tap sets sweetness, ice and drizzle to match your ticket.', costs: [35] },
-    { id: 'topbot', name: 'Topping Bot', icon: '🦾', desc: 'One tap scoops every topping on your ticket.', costs: [55] },
+    { id: 'mixer', name: 'Mix-O-Matic', icon: '🤖', desc: 'One tap sets sweetness, ice and drizzle to match your ticket.', costs: [35], coopOnly: true },
+    { id: 'topbot', name: 'Topping Bot', icon: '🦾', desc: 'One tap scoops every topping on your ticket.', costs: [55], coopOnly: true },
     { id: 'shaker', name: 'Pro Shaker', icon: '🌀', desc: 'Bigger green zone and a calmer needle per level.', costs: [12, 25, 45] },
     { id: 'premium', name: 'Premium Ingredients', icon: '💎', desc: 'Every drink sells for $1 more per level.', costs: [25, 50, 80] },
     { id: 'tipjar', name: 'Tip Jar', icon: '🫙', desc: 'Tips are 25% bigger per level.', costs: [18, 36, 60] },
@@ -88,9 +88,10 @@
     { id: 'lounge', name: 'Comfy Lounge', icon: '🛋️', desc: 'Customers wait 15% longer per level.', costs: [20, 40] },
   ];
 
-  /** What the owned upgrade levels actually do. Used by the rules and by the client stations. */
-  function perks(levels) {
-    const L = (id) => (levels && levels[id]) || 0;
+  /** What the owned upgrade levels actually do. Used by the rules and by the client stations.
+   *  In a showdown the co-op only upgrades do nothing, even if somehow owned. */
+  function perks(levels, showdown) {
+    const L = (id) => (showdown && UPGRADES.some((u) => u.id === id && u.coopOnly) ? 0 : (levels && levels[id]) || 0);
     return {
       pourRate: BASE_POUR_RATE * (1 + 0.3 * L('turbo')),
       autoStop: L('spout') > 0,
@@ -365,6 +366,11 @@
         Object.assign(p, { served: 0, earned: 0, perfects: 0, scoreSum: 0, lost: 0, streak: 0, bonus: 0, ready: false });
       }
       this._event('dayStart', { day: this.day, mode: this.mode });
+      if (this.showdown) {
+        // one customer per player walks in at the bell, so nobody starts the day waiting
+        for (let i = 0; i < this.players.size; i++) this._spawn(now);
+        this.nextSpawnAt = now + this._spawnInterval();
+      }
       this._bump();
     }
 
@@ -609,6 +615,7 @@
       if (!this.players.has(pid)) return { ok: false, error: 'Not in this shop' };
       const u = UPGRADES.find((x) => x.id === uid);
       if (!u) return { ok: false, error: 'No such upgrade' };
+      if (this.showdown && u.coopOnly) return { ok: false, error: `${u.name} is co-op only` };
       const shop = this._shop(pid);
       const level = shop.upgrades[uid];
       // two teammates clicking the same card at once should not buy two levels

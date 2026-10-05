@@ -318,6 +318,58 @@ test('showdown: a player leaving while others are ready starts the day', () => {
   assert.strictEqual(room.phase, 'playing');
 });
 
+test('showdown: every player has a customer waiting when the day opens', () => {
+  const room = showdownRoom(6);
+  room.addPlayer('c', 'Cleo');
+  room.setMode('a', 'showdown');
+  room.startDay('a', 0);
+  const waiting = room.customers.filter((c) => c.status === 'waiting');
+  assert.strictEqual(waiting.length, 3, 'one per player');
+  for (const [pid, c] of [['a', waiting[0]], ['b', waiting[1]], ['c', waiting[2]]]) {
+    assert.ok(room.handle(pid, { type: 'take', cid: c.id }, 10).ok);
+  }
+  room.tick(1000);
+  assert.strictEqual(room.customers.length, 3, 'the next one still waits for the spawn timer');
+
+  // the same goes for every later day
+  room.tick(room.dayEndsAt);
+  for (const pid of ['a', 'b', 'c']) room.handle(pid, { type: 'ready', ready: true }, 0);
+  assert.strictEqual(room.day, 2);
+  assert.strictEqual(room.customers.filter((c) => c.status === 'waiting').length, 3);
+});
+
+test('co-op opens the day with an empty counter', () => {
+  const room = showdownRoom(7);
+  room.startDay('a', 0);
+  assert.strictEqual(room.customers.length, 0);
+});
+
+test('showdown: Mix-O-Matic and Topping Bot are co-op only', () => {
+  const room = showdownRoom(8);
+  room.setMode('a', 'showdown');
+  room.startDay('a', 0);
+  room.tick(room.dayEndsAt);
+  room.players.get('a').money = 500;
+  for (const id of ['mixer', 'topbot']) {
+    const r = room.handle('a', { type: 'buy', id, level: 0 }, 0);
+    assert.strictEqual(r.ok, false);
+    assert.match(r.error, /co-op only/);
+    assert.strictEqual(room.players.get('a').upgrades[id], 0);
+  }
+  assert.strictEqual(room.players.get('a').money, 500, 'nothing was charged');
+  assert.ok(room.handle('a', { type: 'buy', id: 'turbo', level: 0 }, 0).ok, 'other upgrades still sell');
+  const owned = { mixer: 1, topbot: 1, turbo: 1 };
+  assert.ok(!G.perks(owned, true).autoMix && !G.perks(owned, true).autoTop, 'no effect in a showdown');
+  assert.ok(G.perks(owned, false).autoMix && G.perks(owned, false).autoTop);
+  assert.strictEqual(G.perks(owned, true).pourRate, G.perks(owned, false).pourRate);
+
+  const coop = showdownRoom(9);
+  coop.startDay('a', 0);
+  coop.tick(coop.dayEndsAt);
+  coop.money = 500;
+  assert.ok(coop.handle('a', { type: 'buy', id: 'mixer', level: 0 }, 0).ok, 'co-op can still buy them');
+});
+
 test('co-op ignores ready-up and keeps the shared bank', () => {
   const room = showdownRoom(5);
   room.startDay('a', 0);
