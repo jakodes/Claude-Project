@@ -11,6 +11,7 @@ const crypto = require('crypto');
 const { Room } = require('../shared/game.js');
 
 const PORT = Number(process.env.PORT) || 3000;
+const DAY_LENGTH_MS = Number(process.env.DAY_LENGTH_MS) || undefined; // shorter days for testing
 const ROOT = path.join(__dirname, '..');
 const STATIC = {
   '/': 'public/index.html',
@@ -19,8 +20,16 @@ const STATIC = {
   '/art.js': 'public/art.js',
   '/client.js': 'public/client.js',
   '/game.js': 'shared/game.js',
+  '/icon.svg': 'public/icon.svg',
+  '/manifest.webmanifest': 'public/manifest.webmanifest',
 };
-const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
+const TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.webmanifest': 'application/manifest+json',
+};
 
 const rooms = new Map(); // code -> { room, clients: Map(pid -> res), tokens: Map(pid -> token), emptySince, lastSent }
 
@@ -76,7 +85,7 @@ async function handleApi(req, res, url) {
     let entry;
     if (body.create) {
       code = newCode();
-      entry = { room: new Room({ code }), clients: new Map(), tokens: new Map(), timers: new Map(), emptySince: Date.now(), lastSent: 0, lastVersion: -1 };
+      entry = { room: new Room({ code, dayLengthMs: DAY_LENGTH_MS }), clients: new Map(), tokens: new Map(), timers: new Map(), emptySince: Date.now(), lastSent: 0, lastVersion: -1 };
       rooms.set(code, entry);
     } else {
       entry = rooms.get(code);

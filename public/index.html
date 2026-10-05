@@ -2,19 +2,25 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <title>Boba Rush</title>
-  <meta name="description" content="Run a bubble tea shop solo or with friends. Take orders, brew, shake and serve before customers lose patience.">
+  <meta name="description" content="Run a bubble tea shop solo, in co-op, or in a head-to-head showdown with friends.">
   <meta name="theme-color" content="#24123d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Lilita+One&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-screen="menu">
   <div id="bg" aria-hidden="true"></div>
   <div id="app">
     <section id="menu" class="screen">
-      <div class="title-wrap">
+      <div class="menu-wrap">
         <div class="logo">
           <div class="logo-cup" id="logoCup"></div>
           <h1 class="logo-text"><span class="w1">Boba</span><span class="w2">Rush</span></h1>
@@ -22,17 +28,18 @@
         </div>
         <div class="panel title-panel">
           <label class="nametag">
-            <span class="nt-top">HELLO</span>
-            <span class="nt-sub">my name is</span>
+            <span class="nt-top">HELLO <small>my name is</small></span>
             <input id="nameInput" maxlength="16" placeholder="Pearl" autocomplete="off">
           </label>
-          <button id="soloBtn" class="gbtn gbtn-pink gbtn-xl">▶ Play Solo</button>
+          <button id="soloBtn" class="gbtn gbtn-pink gbtn-xl shine">▶ Play Solo</button>
           <div id="mpControls" class="mp">
-            <div class="mp-label"><span>Co-op with friends</span></div>
-            <button id="createBtn" class="gbtn gbtn-grape">Create Room</button>
-            <div class="join-row">
-              <input id="codeInput" maxlength="4" placeholder="CODE" autocomplete="off" aria-label="Room code">
-              <button id="joinBtn" class="gbtn gbtn-mint">Join</button>
+            <div class="mp-label"><span>Play with friends</span></div>
+            <div class="mp-row">
+              <button id="createBtn" class="gbtn gbtn-grape">Create Room</button>
+              <div class="join-row">
+                <input id="codeInput" maxlength="4" placeholder="CODE" autocomplete="off" aria-label="Room code">
+                <button id="joinBtn" class="gbtn gbtn-mint">Join</button>
+              </div>
             </div>
           </div>
           <p id="mpNote" class="note hidden">Multiplayer needs the Boba Rush server. Run <code>npm start</code> and open <code>http://localhost:3000</code>.</p>
@@ -47,14 +54,28 @@
     <section id="lobby" class="screen hidden">
       <div class="panel lobby-panel">
         <div class="ribbon">Waiting Room</div>
-        <div class="room-code">
-          <span class="rc-label">Room code</span>
-          <span id="lobbyCode" class="rc-code"></span>
+        <div class="lobby-grid">
+          <div class="lobby-left">
+            <div class="room-code">
+              <span class="rc-label">Room code</span>
+              <span id="lobbyCode" class="rc-code"></span>
+              <button id="copyLinkBtn" class="gbtn gbtn-grape gbtn-sm">🔗 Copy invite</button>
+            </div>
+            <div class="mode-pick" id="modePick">
+              <button class="mode-card" data-mode="coop">
+                <span class="mc-ico">🤝</span><b>Co-op</b><small>One shop, one bank. Pass tickets around.</small>
+              </button>
+              <button class="mode-card" data-mode="showdown">
+                <span class="mc-ico">⚔️</span><b>Showdown</b><small>Same customers, rival shops. Most cash wins the day.</small>
+              </button>
+            </div>
+          </div>
+          <div class="lobby-right">
+            <div id="lobbyPlayers" class="crew"></div>
+            <button id="startBtn" class="gbtn gbtn-pink gbtn-xl shine">Open the Shop!</button>
+            <p id="lobbyWait" class="note hidden">Waiting for the host to open the shop…</p>
+          </div>
         </div>
-        <button id="copyLinkBtn" class="gbtn gbtn-grape gbtn-sm">🔗 Copy invite link</button>
-        <div id="lobbyPlayers" class="crew"></div>
-        <button id="startBtn" class="gbtn gbtn-pink gbtn-xl">Open the Shop!</button>
-        <p id="lobbyWait" class="note hidden">Waiting for the host to open the shop…</p>
         <button class="gbtn gbtn-ghost gbtn-sm leave-btn">Leave room</button>
       </div>
     </section>
@@ -64,6 +85,7 @@
         <div class="hud-left">
           <div class="day-badge"><span class="db-label">Day</span><span id="dayLabel" class="db-num">1</span></div>
           <div class="clock" id="clockRing"><span id="clock">2:30</span></div>
+          <span class="mode-tag hidden" id="modeTag">⚔️</span>
         </div>
         <div class="hud-team" id="playerChips"></div>
         <div class="hud-right">
@@ -73,50 +95,67 @@
             <div class="emote-tray hidden" id="emotes"></div>
           </div>
           <button class="hud-btn" id="muteBtn" title="Sound on/off" aria-label="Toggle sound">🔊</button>
+          <button class="hud-btn fs-btn" title="Fullscreen" aria-label="Toggle fullscreen">⛶</button>
           <button class="hud-btn leave-btn" title="Leave" aria-label="Leave game">🚪</button>
         </div>
       </header>
+      <div class="race hidden" id="race"></div>
       <div class="rail-wrap">
         <div class="rail-bar" aria-hidden="true"></div>
         <div class="rail" id="tickets"></div>
       </div>
-      <main class="stage">
-        <div id="station" class="station"></div>
-        <aside class="side">
-          <div class="recipe" id="orderStrip"></div>
-          <div class="tray"><div id="miniCup"></div><span>Your cup</span></div>
-        </aside>
-      </main>
+      <div id="station" class="station"></div>
+      <aside class="side">
+        <div class="recipe" id="orderStrip"></div>
+        <div class="tray"><div id="miniCup"></div><span>Your cup</span></div>
+      </aside>
       <nav class="dock" id="tabs"></nav>
       <div id="handoffs" class="handoffs" aria-live="polite"></div>
+      <div id="banner" class="banner" aria-live="polite"></div>
+      <div id="resultPop" class="result-pop" aria-live="polite"></div>
     </section>
 
     <section id="results" class="screen hidden">
       <div class="panel results-panel" id="reportView">
         <div class="ribbon ribbon-big" id="resTitle">Day 1 Complete!</div>
-        <div class="grade-stamp" id="resGrade">A</div>
-        <div class="res-stats" id="resStats"></div>
-        <div id="resTable" class="leaderboard"></div>
+        <div class="res-body">
+          <div class="res-top">
+            <div class="grade-stamp" id="resGrade">A</div>
+            <div class="podium hidden" id="podium"></div>
+            <div class="res-stats" id="resStats"></div>
+          </div>
+          <div id="resTable" class="leaderboard"></div>
+        </div>
         <div class="res-actions">
-          <button id="shopBtn" class="gbtn gbtn-yellow gbtn-xl">🛒 Upgrade Shop</button>
-          <button class="gbtn gbtn-pink gbtn-xl next-day-btn">Open Day 2 ▶</button>
+          <button id="shopBtn" class="gbtn gbtn-yellow">🛒 Shop</button>
+          <button class="gbtn gbtn-pink next-day-btn shine">Open Day 2 ▶</button>
+          <button class="gbtn gbtn-mint ready-btn shine hidden">✋ Ready!</button>
         </div>
         <p class="note res-wait hidden">Waiting for the host to start the next day…</p>
-        <button class="gbtn gbtn-ghost gbtn-sm leave-btn">Back to menu</button>
+        <div class="foot-row">
+          <button class="gbtn gbtn-ghost gbtn-sm leave-btn">Back to menu</button>
+        </div>
       </div>
       <div class="panel shop-panel hidden" id="shopView">
-        <div class="ribbon">Upgrade Shop</div>
-        <div class="bank"><span class="coin">$</span><span>Team bank</span><b id="shopBank">$0.00</b></div>
-        <p class="note">Everything here is shared by the whole crew. Upgrades last for the rest of the run.</p>
+        <div class="ribbon">Shop</div>
+        <div class="shop-head">
+          <div class="bank"><span class="coin">$</span><span id="bankLabel">Team bank</span><b id="shopBank">$0.00</b></div>
+          <div class="seg" id="shopTabs">
+            <button data-tab="upgrades" class="on">⚙️ Upgrades</button>
+            <button data-tab="recipes">📜 Recipes</button>
+          </div>
+        </div>
         <div class="shop-grid" id="shopGrid"></div>
         <div class="res-actions">
-          <button id="shopBackBtn" class="gbtn gbtn-ghost">◀ Day report</button>
-          <button class="gbtn gbtn-pink gbtn-xl next-day-btn">Open Day 2 ▶</button>
+          <button id="shopBackBtn" class="gbtn gbtn-cream">◀ Report</button>
+          <button class="gbtn gbtn-pink next-day-btn shine">Open Day 2 ▶</button>
+          <button class="gbtn gbtn-mint ready-btn shine hidden">✋ Ready!</button>
         </div>
         <p class="note res-wait hidden">Waiting for the host to start the next day…</p>
       </div>
     </section>
   </div>
+  <button class="fs-fab fs-btn" title="Fullscreen" aria-label="Toggle fullscreen">⛶</button>
   <div id="toasts" aria-live="polite"></div>
   <div id="modal" class="modal hidden"></div>
 

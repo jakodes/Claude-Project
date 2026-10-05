@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const G = require('../shared/game.js');
 
-const perfect = (order) => ({ tea: order.tea, fill: G.FILL_TARGET, sweet: order.sweet, ice: order.ice, toppings: order.toppings, shake: 1 });
+const perfect = (order) => ({ tea: order.tea, fill: G.FILL_TARGET, sweet: order.sweet, ice: order.ice, toppings: order.toppings, drizzle: order.drizzle, shake: 1 });
 
 test('a perfect drink scores 100 and three stars', () => {
   const order = { tea: 'taro', sweet: 2, ice: 1, toppings: ['pearls', 'pudding'] };
@@ -164,4 +164,164 @@ test('premium ingredients raise prices and the lounge adds patience', () => {
   const fancy = run({ premium: 2, lounge: 1 });
   assert.strictEqual(fancy.price, plain.price + 2);
   assert.ok(fancy.patience > plain.patience);
+});
+
+test('drizzle counts with the toppings', () => {
+  const order = { tea: 'classic', sweet: 3, ice: 1, toppings: ['pearls'], drizzle: 'sugar' };
+  assert.strictEqual(G.scoreDrink(order, perfect(order)).total, 100);
+  const noDrizzle = G.scoreDrink(order, Object.assign(perfect(order), { drizzle: null }));
+  assert.strictEqual(noDrizzle.parts.toppings, 13);
+  const wrong = G.scoreDrink({ tea: 'classic', sweet: 0, ice: 0, toppings: [] }, { tea: 'classic', fill: G.FILL_TARGET, drizzle: 'honey', shake: 1 });
+  assert.strictEqual(wrong.parts.toppings, 13, 'a drizzle nobody asked for costs points');
+  assert.strictEqual(G.sanitizeDrink({ drizzle: 'ketchup' }).drizzle, null);
+});
+
+test('new teas and toppings unlock by day', () => {
+  const rng = G.mulberry32(5);
+  for (let i = 0; i < 300; i++) {
+    const o = G.makeOrder(rng, 1);
+    assert.ok(G.TEAS.find((t) => t.id === o.tea).minDay <= 1);
+    assert.ok(o.toppings.every((t) => G.TOPPINGS.find((x) => x.id === t).minDay <= 1));
+    assert.strictEqual(o.drizzle, null, 'no drizzles on day 1');
+  }
+  const late = Array.from({ length: 400 }, () => G.makeOrder(rng, 5));
+  assert.ok(late.some((o) => o.tea === 'butterfly'));
+  assert.ok(late.some((o) => o.drizzle));
+  assert.ok(late.some((o) => o.toppings.length === 3));
+});
+
+test('secret recipes: buy one and customers start ordering it for more money', () => {
+  const room = new G.Room({ seed: 21, dayLengthMs: 60000 });
+  room.addPlayer('a', 'Alice');
+  room.startDay('a', 0);
+  room.tick(60000);
+  room.money = 100;
+  assert.strictEqual(room.handle('a', { type: 'recipe', id: 'nope' }, 0).ok, false);
+  assert.ok(room.handle('a', { type: 'recipe', id: 'tiger' }, 0).ok);
+  assert.strictEqual(room.handle('a', { type: 'recipe', id: 'tiger' }, 0).ok, false, 'cannot buy twice');
+  assert.strictEqual(room.money, 75);
+  const orders = Array.from({ length: 200 }, () => G.makeOrder(room.rng, 2, room.recipes));
+  const tiger = orders.find((o) => o.special === 'tiger');
+  assert.ok(tiger, 'customers order the special');
+  assert.deepStrictEqual(tiger.toppings, ['pearls']);
+  assert.strictEqual(tiger.drizzle, 'sugar');
+  assert.ok(G.drinkPrice(tiger, true) > G.drinkPrice(tiger, false));
+  assert.ok(!G.makeOrder(G.mulberry32(1), 1, ['tiger']).special, 'specials wait for their ingredients');
+});
+
+test('new upgrades: tip jar, golden straws, topping bot', () => {
+  const p = G.perks({ tipjar: 2, golden: 1, topbot: 1 });
+  assert.strictEqual(p.tipMult, 1.5);
+  assert.strictEqual(p.goldBonus, 1.5);
+  assert.ok(p.autoTop);
+  assert.ok(!G.perks({}).autoTop);
+});
+
+function showdownRoom(seed) {
+  const room = new G.Room({ seed, dayLengthMs: 120000 });
+  room.addPlayer('a', 'Alice');
+  room.addPlayer('b', 'Bob');
+  return room;
+}
+
+function spawnMany(room, n, t) {
+  for (let i = 0; i < n; i++) room._spawn(t);
+  return room.customers.filter((c) => c.status === 'waiting');
+}
+
+test('showdown: only the host picks it, and only in the lobby', () => {
+  const room = showdownRoom(1);
+  assert.strictEqual(room.handle('b', { type: 'mode', mode: 'showdown' }, 0).ok, false);
+  assert.strictEqual(room.handle('a', { type: 'mode', mode: 'chaos' }, 0).ok, false);
+  assert.ok(room.handle('a', { type: 'mode', mode: 'showdown' }, 0).ok);
+  assert.strictEqual(room.snapshot(0).mode, 'showdown');
+  room.startDay('a', 0);
+  assert.strictEqual(room.handle('a', { type: 'mode', mode: 'coop' }, 0).ok, false, 'locked once open');
+});
+
+test('showdown: one customer at a time, no stealing, separate wallets', () => {
+  const room = showdownRoom(2);
+  room.setMode('a', 'showdown');
+  room.startDay('a', 0);
+  const [c1, c2, c3] = spawnMany(room, 3, 100);
+  assert.ok(room.handle('a', { type: 'take', cid: c1.id }, 100).ok);
+  assert.strictEqual(room.handle('a', { type: 'take', cid: c2.id }, 100).ok, false, 'one ticket at a time');
+  assert.ok(room.handle('b', { type: 'take', cid: c2.id }, 100).ok);
+  const steal = room.handle('b', { type: 'claim', cid: c1.id }, 100);
+  assert.strictEqual(steal.ok, false, 'no handoff requests in showdown');
+  assert.strictEqual(c1.request, null);
+  assert.strictEqual(room.handle('b', { type: 'serve', cid: c1.id, drink: perfect(c1.order) }, 100).ok, false);
+
+  const r = room.handle('a', { type: 'serve', cid: c1.id, drink: perfect(c1.order) }, 200);
+  assert.ok(r.ok);
+  assert.strictEqual(room.players.get('a').money, r.result.earned);
+  assert.strictEqual(room.players.get('b').money, 0);
+  assert.strictEqual(room.money, 0, 'the team bank is not used');
+  assert.ok(room.handle('a', { type: 'take', cid: c3.id }, 300).ok, 'free to take the next one');
+  assert.ok(room.events.some((e) => e.type === 'lead' && e.pid === 'a'));
+});
+
+test('showdown: streaks, final rush, placement bonus and ready-up', () => {
+  const room = showdownRoom(3);
+  room.setMode('a', 'showdown');
+  room.startDay('a', 0);
+  const serveOne = (pid, t) => {
+    const [c] = spawnMany(room, 1, t);
+    room.handle(pid, { type: 'take', cid: c.id }, t);
+    return room.handle(pid, { type: 'serve', cid: c.id, drink: perfect(c.order) }, t).result;
+  };
+  serveOne('a', 1000);
+  serveOne('a', 1000);
+  const third = serveOne('a', 1000);
+  assert.strictEqual(third.streak, 3);
+  assert.strictEqual(third.bonus, 1, 'hot streak bonus');
+  room.tick(room.dayEndsAt - G.RUSH_MS + 1);
+  assert.ok(room.rushOn);
+  const rushed = serveOne('b', room.dayEndsAt - 1000);
+  assert.ok(rushed.rush);
+
+  room.tick(room.dayEndsAt);
+  assert.strictEqual(room.phase, 'results');
+  const res = room.lastResults;
+  assert.strictEqual(res.mode, 'showdown');
+  assert.strictEqual(res.players[0].id, 'a');
+  assert.strictEqual(res.players[0].placeBonus, G.placeBonus(0, 1));
+  assert.strictEqual(res.players[1].placeBonus, G.placeBonus(1, 1));
+  assert.ok(room.players.get('a').money > res.players[0].earned, 'bonus lands in the wallet');
+
+  // each player shops for themselves
+  room.players.get('b').money = 20;
+  assert.ok(room.handle('b', { type: 'buy', id: 'turbo', level: 0 }, 0).ok);
+  assert.strictEqual(room.players.get('b').upgrades.turbo, 1);
+  assert.strictEqual(room.players.get('a').upgrades.turbo, 0);
+  assert.strictEqual(room.upgrades.turbo, 0);
+
+  assert.strictEqual(room.handle('a', { type: 'start' }, 0).ok, false, 'the host cannot skip the ready-up');
+  assert.ok(room.handle('a', { type: 'ready', ready: true }, 0).ok);
+  assert.strictEqual(room.phase, 'results');
+  room.handle('b', { type: 'ready', ready: true }, 0);
+  assert.strictEqual(room.phase, 'playing', 'everyone ready opens the next day');
+  assert.strictEqual(room.day, 2);
+  assert.ok([...room.players.values()].every((p) => !p.ready));
+});
+
+test('showdown: a player leaving while others are ready starts the day', () => {
+  const room = showdownRoom(4);
+  room.addPlayer('c', 'Cleo');
+  room.setMode('a', 'showdown');
+  room.startDay('a', 0);
+  room.tick(room.dayEndsAt);
+  room.handle('a', { type: 'ready', ready: true }, 0);
+  room.handle('b', { type: 'ready', ready: true }, 0);
+  room.removePlayer('c');
+  room.tick(1);
+  assert.strictEqual(room.phase, 'playing');
+});
+
+test('co-op ignores ready-up and keeps the shared bank', () => {
+  const room = showdownRoom(5);
+  room.startDay('a', 0);
+  room.tick(room.dayEndsAt);
+  assert.strictEqual(room.handle('a', { type: 'ready', ready: true }, 0).ok, false);
+  assert.ok(room.handle('a', { type: 'start' }, 0).ok);
 });
