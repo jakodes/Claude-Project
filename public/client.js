@@ -49,6 +49,7 @@
     chipSig: '',
   };
   const now = () => Date.now() + S.offset;
+  const setUrl = (u) => { try { history.replaceState(null, '', u); } catch (e) { /* sandboxed frame */ } };
 
   /* ---------------- sound ---------------- */
   const Sound = {
@@ -196,7 +197,7 @@
       const j = await r.json();
       if (!j.ok) return toast(j.error || 'Could not join', 'bad');
       startSession(new NetTransport(j.code, j.pid, j.token));
-      history.replaceState(null, '', '?room=' + j.code);
+      setUrl('?room=' + j.code);
     } catch (e) {
       toast('Could not reach the Boba Rush server', 'bad');
     }
@@ -236,7 +237,7 @@
     S.pouring = false;
     S.shake = null;
     closeModal();
-    history.replaceState(null, '', location.pathname);
+    setUrl(location.pathname);
     renderBest();
     showScreen('menu');
     checkServer();
